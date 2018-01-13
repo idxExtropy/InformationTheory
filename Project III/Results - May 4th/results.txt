@@ -1,0 +1,18 @@
+SNR =
+
+     4     6     8    10
+
+
+bitErrorRateBPSK =
+
+    0.0567    0.0220    0.0061    0.0008
+
+
+bitErrorRateHard =
+
+    0.0167    0.0020    0.0004    0.0001
+
+
+bitErrorRateSoft =
+
+    0.0057    0.0022    0.0013    0.0005

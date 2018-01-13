@@ -1,0 +1,388 @@
+%% Implementation of the Viterbi decoder
+function outData = decoder(inData, soft)    
+    if (soft == 1)
+        outData = decodeEuclidean(inData);
+    else
+        outData = decodeHamming(inData);
+    end
+end
+
+%% Decode (soft decision)
+function outData = decodeEuclidean(inData)
+    % States
+    sA = 00; 
+    sB = 10;
+    sC = 01; 
+    sD = 11;
+    
+    % Branch transitions
+    txAA = [-1; -1]; txAB = [1; 1];
+    txBC = [1; -1]; txBD = [-1; 1];
+    txCA = [1; 1]; txCB = [-1; -1];
+    txDC = [-1; 1]; txDD = [1; -1];
+
+    % Each Node is comprised of:
+    %   - current state
+    %   - path metric
+    
+    % Max path length to carry
+    maxLen = 10; iLen = 0;
+    
+    for i=1:8
+        l(i) = java.util.LinkedList;
+        if (i < 5)
+           temp(i) = java.util.LinkedList; 
+        end
+    end
+    
+    % Populate the trellis dynamically
+    for t=1:length(inData)
+        if (t == 1)
+            % A -> A (1st path)
+            l(1).add([sA getEuclideanDist(txAA, inData(1, t), inData(2, t))]);
+            
+            % A -> B (2nd path)
+            l(2).add([sB getEuclideanDist(txAB, inData(1, t), inData(2, t))]);
+        elseif (t == 2)
+            % A -> A (1st path)
+            prev = l(1).get(t-2);
+            l(1).add([sA getEuclideanDist(txAA, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % A -> B (2nd path, off of 1st path)
+            temp(2) = copyList(l(2), t); % Will need this later!
+            l(2) = copyList(l(1),t); prev = l(2).get(t-2);
+            l(2).add([sB getEuclideanDist(txAB, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % B -> C (3rd path, off of 2nd path)
+            l(3) = copyList(temp(2), t); prev = l(3).get(t-2);
+            l(3).add([sC getEuclideanDist(txBC, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % B -> D (4th path, off of 2nd path)
+            l(4) = copyList(temp(2), t); prev = l(4).get(t-2);
+            l(4).add([sD getEuclideanDist(txBD, inData(1, t), inData(2, t)) + prev(2)]);
+        else
+            % A -> A (1st path)
+            prev = l(1).get(t-2);
+            l(1).add([sA getEuclideanDist(txAA, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % B -> C (2nd path)
+            prev = l(2).get(t-2);
+            l(2).add([sC getEuclideanDist(txBC, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % C -> A (3rd path)
+            prev = l(3).get(t-2);
+            l(3).add([sA getEuclideanDist(txCA, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % D -> C (4th path)
+            prev = l(4).get(t-2);
+            l(4).add([sC getEuclideanDist(txDC, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % A -> B (5th path, off of 1st path)
+            l(5) = copyList(l(1),t); prev = l(5).get(t-2);
+            l(5).add([sB getEuclideanDist(txAB, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % B -> D (6th path, off of 2nd path)
+            l(6) = copyList(l(2),t); prev = l(6).get(t-2);
+            l(6).add([sD getEuclideanDist(txBD, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % C -> B (7th path, off of 3rd path)
+            l(7) = copyList(l(3),t); prev = l(7).get(t-2);
+            l(7).add([sB getEuclideanDist(txCB, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % D -> D (8th path, off of 4th path)
+            l(8) = copyList(l(4),t); prev = l(8).get(t-2);
+            l(8).add([sD getEuclideanDist(txDD, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % Compare paths to remove the 4 worst
+            m1 = l(1).get(t-1); m3 = l(3).get(t-1);
+            if (m3(2) < m1(2))
+                temp(1) =  copyList(l(3),t+1);
+            else
+                temp(1) = copyList(l(1),t+1);
+            end
+            
+            m5 = l(5).get(t-1); m7 = l(7).get(t-1);
+            if (m5(2) < m7(2))
+                temp(2) =  copyList(l(5),t+1);
+            else
+                temp(2) =  copyList(l(7),t+1);
+            end
+            
+            m2 = l(2).get(t-1); m4 = l(4).get(t-1);
+            if (m4(2) < m2(2))
+                temp(3) =  copyList(l(4),t+1);
+            else
+                temp(3) =  copyList(l(2),t+1);
+            end
+            
+            m6 = l(6).get(t-1); m8 = l(8).get(t-1);
+            if (m8(2) < m6(2))
+                temp(4) =  copyList(l(8),t+1);
+            else
+                temp(4) =  copyList(l(6),t+1);
+            end
+            
+            % Copy temp lists to surviving lists
+            l(1) = temp(1);
+            l(2) = temp(2);
+            l(3) = temp(3);
+            l(4) = temp(4);
+            
+            iLen = iLen + 1;
+        end
+        
+        if (t == maxLen)
+            iLen = 0;
+        end
+    end
+ 
+    % Select the best final path
+    minDist = inf; shortestPath = 1;
+    for i=1:8
+        value = l(i).getLast();
+        if (value(2) < minDist)
+            shortestPath = i;
+            minDist = value(2);
+        end
+    end
+
+    % Copy the 'best path' states to the output
+    outCodes = zeros(1,length(inData));
+    for t=1:length(inData)
+        value = l(shortestPath).get(t-1);
+        outCodes(t) = value(1);
+    end
+    
+    % outCodes = [10 11 01 10 11];
+    outData = decompressBits(outCodes);
+end
+
+%% Decode (hard decision)
+function outData = decodeHamming(inData)
+    % States
+    sA = 00; 
+    sB = 10;
+    sC = 01; 
+    sD = 11;
+    
+    % Branch transitions
+    txAA = [-1; -1]; txAB = [1; 1];
+    txBC = [1; -1]; txBD = [-1; 1];
+    txCA = [1; 1]; txCB = [-1; -1];
+    txDC = [-1; 1]; txDD = [1; -1];
+
+    % Each Node is comprised of:
+    %   - current state
+    %   - path metric
+    
+    % Max path length to carry
+    maxLen = 10; iLen = 0;
+    
+    for i=1:8
+        l(i) = java.util.LinkedList;
+        if (i < 5)
+           temp(i) = java.util.LinkedList; 
+        end
+    end
+    
+    % Populate the trellis dynamically
+    for t=1:length(inData)
+        if (t == 1)
+            % A -> A (1st path)
+            l(1).add([sA getHammingDist(txAA, inData(1, t), inData(2, t))]);
+            
+            % A -> B (2nd path)
+            l(2).add([sB getHammingDist(txAB, inData(1, t), inData(2, t))]);
+        elseif (t == 2)
+            % A -> A (1st path)
+            prev = l(1).get(t-2);
+            l(1).add([sA getHammingDist(txAA, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % A -> B (2nd path, off of 1st path)
+            temp(2) = copyList(l(2), t); % Will need this later!
+            l(2) = copyList(l(1),t); prev = l(2).get(t-2);
+            l(2).add([sB getHammingDist(txAB, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % B -> C (3rd path, off of 2nd path)
+            l(3) = copyList(temp(2), t); prev = l(3).get(t-2);
+            l(3).add([sC getHammingDist(txBC, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % B -> D (4th path, off of 2nd path)
+            l(4) = copyList(temp(2), t); prev = l(4).get(t-2);
+            l(4).add([sD getHammingDist(txBD, inData(1, t), inData(2, t)) + prev(2)]);
+        else
+            % A -> A (1st path)
+            prev = l(1).get(t-2);
+            l(1).add([sA getHammingDist(txAA, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % B -> C (2nd path)
+            prev = l(2).get(t-2);
+            l(2).add([sC getHammingDist(txBC, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % C -> A (3rd path)
+            prev = l(3).get(t-2);
+            l(3).add([sA getHammingDist(txCA, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % D -> C (4th path)
+            prev = l(4).get(t-2);
+            l(4).add([sC getHammingDist(txDC, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % A -> B (5th path, off of 1st path)
+            l(5) = copyList(l(1),t); prev = l(5).get(t-2);
+            l(5).add([sB getHammingDist(txAB, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % B -> D (6th path, off of 2nd path)
+            l(6) = copyList(l(2),t); prev = l(6).get(t-2);
+            l(6).add([sD getHammingDist(txBD, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % C -> B (7th path, off of 3rd path)
+            l(7) = copyList(l(3),t); prev = l(7).get(t-2);
+            l(7).add([sB getHammingDist(txCB, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % D -> D (8th path, off of 4th path)
+            l(8) = copyList(l(4),t); prev = l(8).get(t-2);
+            l(8).add([sD getHammingDist(txDD, inData(1, t), inData(2, t)) + prev(2)]);
+            
+            % Compare paths to remove the 4 worst
+            m1 = l(1).get(t-1); m3 = l(3).get(t-1);
+            if (m3(2) < m1(2))
+                temp(1) =  copyList(l(3),t+1);
+            else
+                temp(1) = copyList(l(1),t+1);
+            end
+            
+            m5 = l(5).get(t-1); m7 = l(7).get(t-1);
+            if (m5(2) < m7(2))
+                temp(2) =  copyList(l(5),t+1);
+            else
+                temp(2) =  copyList(l(7),t+1);
+            end
+            
+            m2 = l(2).get(t-1); m4 = l(4).get(t-1);
+            if (m4(2) < m2(2))
+                temp(3) =  copyList(l(4),t+1);
+            else
+                temp(3) =  copyList(l(2),t+1);
+            end
+            
+            m6 = l(6).get(t-1); m8 = l(8).get(t-1);
+            if (m8(2) < m6(2))
+                temp(4) =  copyList(l(8),t+1);
+            else
+                temp(4) =  copyList(l(6),t+1);
+            end
+            
+            % Copy temp lists to surviving lists
+            l(1) = temp(1);
+            l(2) = temp(2);
+            l(3) = temp(3);
+            l(4) = temp(4);
+            
+            iLen = iLen + 1;
+        end
+        
+        if (t == maxLen)
+            iLen = 0;
+        end
+    end
+ 
+    % Select the best final path
+    minDist = inf; shortestPath = 1;
+    for i=1:8
+        value = l(i).getLast();
+        if (value(2) < minDist)
+            shortestPath = i;
+            minDist = value(2);
+        end
+    end
+
+    % Copy the 'best path' states to the output
+    outCodes = zeros(1,length(inData));
+    for t=1:length(inData)
+        value = l(shortestPath).get(t-1);
+        outCodes(t) = value(1);
+    end
+    
+    % outCodes = [10 11 01 10 11];
+    outData = decompressBits(outCodes);
+end
+
+%% Return trimmed list
+function outList = maxCutoff()
+    outList = 0;
+end
+
+%% Return a copy of the input linked list
+function outList = copyList(sourceList, tMax)
+    outList = java.util.LinkedList;
+    
+    for i=0:tMax-2
+        outList.add(sourceList.get(i));
+    end
+end
+
+%% Decompress 2-bit code words into message bits
+function outData = decompressBits(inData)
+    outData = zeros(1,length(inData));
+
+    for i=1:length(inData)
+       if (inData(i) == 0)
+           outData(i) = 0;
+       elseif (inData(i) == 10)
+           outData(i) = 1;
+       elseif (inData(i) == 1)
+           outData(i) = 0;
+       elseif (inData(i) == 11)
+           outData(i) = 1;
+       end
+    end
+end
+
+%% Get Euclidean distance between two points
+function dist = getEuclideanDist(pA, pBx, pBy)
+    dist = 0;
+
+    if (pA(1,1) == -1 && pA(2,1) == -1)
+        
+        dist = sqrt((pBx + 1)^2 + (pBy + 1)^2);
+        
+    elseif (pA(1,1) == 1 && pA(2,1) == 1)
+        
+        dist = sqrt((pBx - 1)^2 + (pBy - 1)^2);
+        
+    elseif (pA(1,1) == 1 && pA(2,1) == -1)
+        
+        dist = sqrt((pBx - 1)^2 + (pBy + 1)^2);
+        
+    elseif (pA(1,1) == -1 && pA(2,1) == 1)
+        
+        dist = sqrt((pBx + 1)^2 + (pBy - 1)^2);
+        
+    else
+        
+        ValueNotPlusMinusOne = 1
+    end
+end
+
+%% Get Hamming distance between two points
+function dist = getHammingDist(pA, pBx, pBy)
+    dist = 0;
+    
+    if (pBx >= 0)
+       pBx = 1;
+    else
+       pBx = -1;
+    end
+    
+    if (pBy >= 0)
+       pBy = 1;
+    else
+       pBy = -1;
+    end
+    
+    % Test first bit
+    dist = dist + abs(pA(1, 1) - pBx);
+    
+    % Test second bit
+    dist = dist + abs(pA(2, 1) - pBy);
+end

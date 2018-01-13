@@ -1,0 +1,98 @@
+%% DOCUMENT TITLE
+% Thomas Calloway
+% 16.548 - Assignment #2
+% 16 Bit CRC Code
+
+%% Code for the CRC-16 Implementation and Test
+function CRC()
+    % Create 96 value input vector (bits)
+    inputMsg = zeros(96,1);
+    for i=1:96
+       if mod(i,2) ~= 0
+           inputMsg(i) = 1;
+       end
+    end
+    
+    results = sprintf('Input Message: ');
+    for i=1:size(inputMsg,1)
+        results = [results num2str(inputMsg(i))];
+    end
+    results = [results sprintf('\n')];
+
+    % Calculate and append a 16 bit CRC
+    augMsg = inputMsg; augMsg(97:112) = zeros(16,1);
+    crcReg = CalculateCRC(augMsg, 112);
+
+    results = [results 'CRC: ' ];
+    for i=1:16
+        results = [results, num2str(crcReg(i))];
+    end
+    results = [results sprintf('\n')];
+
+    % Compute CRC on all 112 bits and verify result is zero
+    augMsg = inputMsg; 
+    augMsg(97:112) = crcReg(1:16);
+    crcTest = CalculateCRC(augMsg, 112);
+    
+    results = [results 'CRC Verification: ' ];
+    for i=1:16
+        results = [results num2str(crcTest(i))];
+    end
+    results = [results sprintf('\n')];
+    
+    % Try again with bits 9-16 incorrect
+    augMsg = inputMsg; augMsg(97:112) = crcReg(1:16);
+    augMsg(9:16) = ~augMsg(9:16);
+    crcTest = CalculateCRC(augMsg, 112);
+    
+    results = [results 'CRC Verification (9-16 errors): ' ];
+    for i=1:16
+        results = [results num2str(crcTest(i))];
+    end
+    results = [results sprintf('\n')];
+    
+    % Try again with value 1 for last 8 bits
+    augMsg = inputMsg; augMsg(97:112) = crcReg(1:16);
+    augMsg(105:112) = ones(1,8);
+    crcTest = CalculateCRC(augMsg, 112);
+    
+    results = [results 'CRC Verification (last 8 bits 1): ' ];
+    for i=1:16
+        results = [results num2str(crcTest(i))];
+    end
+    results = [results sprintf('\n')];
+    
+    % Try again with bits 8,16,24,32,100
+    augMsg = inputMsg; augMsg(97:112) = crcReg(1:16);
+    augMsg(8) = ~augMsg(8); augMsg(16) = ~augMsg(16);
+    augMsg(24) = ~augMsg(24); augMsg(32) = ~augMsg(32);
+    augMsg(100) = ~augMsg(100);
+    crcTest = CalculateCRC(augMsg, 112);
+    
+    results = [results 'CRC Verification (misc. errors): ' ];
+    for i=1:16
+        results = [results num2str(crcTest(i))];
+    end
+    results = [results sprintf('\n')];
+    
+    % Command Window Output
+    results
+    pause(5)
+    clc
+end
+
+function crcReg = CalculateCRC(augMsg, msgLen)
+    % CRC-16 G(x) = x16 + x15 + x2 + 1
+    genX =   [1 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1];
+    crcReg = [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0];
+    
+    for i=1:msgLen
+        regPop = crcReg(16); % Save popped bit for later
+        crcReg(2:17) = crcReg(1:16); % Shift one bit
+        crcReg(1) = augMsg(i);
+
+        if regPop == 1
+            crcReg = bitxor(crcReg,genX);
+        end
+    end
+end

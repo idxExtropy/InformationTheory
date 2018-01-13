@@ -1,0 +1,13 @@
+bitErrorRateBPSK =
+
+    0.0580    0.0227    0.0058    0.0008
+
+
+bitErrorRateHard =
+
+    0.0170    0.0023    0.0003         0
+
+
+bitErrorRateSoft =
+
+    0.0046    0.0015    0.0010    0.0007
